@@ -3,13 +3,16 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Bone, Brain, Activity, HeartPulse, UserCheck, Flame, ArrowUpRight, X, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import BookingModal from './booking/BookingModal.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { api } from '../services/api.js';
 
-const Services = () => {
+const Services = ({ isHomePage: isHomeProp }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [selectedService, setSelectedService] = useState(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
+
+  const isHomePage = isHomeProp !== undefined ? isHomeProp : (location.pathname === '/' || location.pathname === '');
 
   useEffect(() => {
     if (location.state?.autoOpenBooking) {
@@ -35,7 +38,7 @@ const Services = () => {
     }
   };
 
-  const servicesList = [
+  const defaultServicesList = [
     {
       icon: <Bone size={26} />,
       title: 'Orthopedic Rehabilitation',
@@ -164,6 +167,65 @@ const Services = () => {
     }
   ];
 
+  const [allServices, setAllServices] = useState(defaultServicesList);
+
+  useEffect(() => {
+    const fetchBackendServices = async () => {
+      try {
+        const res = await api.getServices();
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const merged = res.data.map((dbSrv) => {
+            const dbTitleLower = (dbSrv.title || '').toLowerCase();
+            const foundDefault = defaultServicesList.find(
+              (d) => d.title.toLowerCase() === dbTitleLower
+            );
+
+            let serviceImg = dbSrv.image;
+            if (dbTitleLower.includes('posture') || dbTitleLower.includes('ergonomic')) {
+              serviceImg = '/images/posture.jpg';
+            } else if (dbTitleLower.includes('post-surgical') || dbTitleLower.includes('post surgical') || dbTitleLower.includes('post op') || dbTitleLower.includes('post-op')) {
+              serviceImg = '/images/Post.jpg';
+            } else if (!serviceImg || serviceImg === '/images/hero_physio.jpg') {
+              if (foundDefault?.image) {
+                serviceImg = foundDefault.image;
+              }
+            }
+
+            return {
+              title: dbSrv.title,
+              desc: dbSrv.description || dbSrv.desc || foundDefault?.desc || '',
+              fullDesc: dbSrv.description || foundDefault?.fullDesc || dbSrv.desc,
+              image: serviceImg || '/images/hero_physio.jpg',
+              duration: dbSrv.duration || foundDefault?.duration || '45 mins',
+              price: dbSrv.price || foundDefault?.price || '₹1,200',
+              sessionInfo: foundDefault?.sessionInfo || '1-on-1 Clinical Care',
+              tag: dbSrv.category ? dbSrv.category.toUpperCase() : (foundDefault?.tag || 'SPECIALIZED CARE'),
+              icon: foundDefault?.icon || <Activity size={26} />,
+              benefits: foundDefault?.benefits || [
+                'Evidence-based non-surgical physical rehabilitation.',
+                '1-on-1 personalized assessment and care plan.',
+                'Faster recovery and pain reduction.'
+              ],
+              conditions: foundDefault?.conditions || [
+                'Joint & Muscle Stiffness',
+                'Acute & Chronic Body Pain',
+                'Movement Limitation'
+              ]
+            };
+          });
+
+          setAllServices(merged);
+        }
+      } catch (err) {
+        console.error("Failed to load services from backend:", err);
+      }
+    };
+
+    fetchBackendServices();
+  }, []);
+
+  const displayedServices = isHomePage ? allServices.slice(0, 6) : allServices;
+
   return (
     <section className="services-section section-padding" id="services">
       <div className="container">
@@ -179,34 +241,69 @@ const Services = () => {
         </div>
 
         <div className="services-grid">
-          {servicesList.map((service, idx) => (
-            <div className="light-card service-card" key={idx}>
-              {service.image && (
-                <div 
-                  className="service-card-image-wrapper"
-                  onClick={() => setSelectedService(service)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <img src={service.image} alt={service.title} className="service-card-img" />
+          {displayedServices.map((service, idx) => {
+            const slug = service.slug || service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+            const handleServiceClick = () => {
+              window.scrollTo(0, 0);
+              navigate(`/services/${slug}`);
+            };
+
+            return (
+              <div className="light-card service-card" key={idx}>
+                {service.image && (
+                  <div 
+                    className="service-card-image-wrapper"
+                    onClick={handleServiceClick}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <img src={service.image} alt={service.title} className="service-card-img" />
+                  </div>
+                )}
+                <div className="service-card-body">
+                  {!service.image && <div className="card-icon-teal">{service.icon}</div>}
+                  <h3>{service.title}</h3>
+                  <p>{service.desc}</p>
+                  <button 
+                    type="button"
+                    className="card-link-teal" 
+                    onClick={handleServiceClick}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                  >
+                    <span>Learn More</span>
+                    <ArrowUpRight size={16} />
+                  </button>
                 </div>
-              )}
-              <div className="service-card-body">
-                {!service.image && <div className="card-icon-teal">{service.icon}</div>}
-                <h3>{service.title}</h3>
-                <p>{service.desc}</p>
-                <button 
-                  type="button"
-                  className="card-link-teal" 
-                  onClick={() => setSelectedService(service)}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                >
-                  <span>Learn More</span>
-                  <ArrowUpRight size={16} />
-                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* View More Button on Home Page */}
+        {isHomePage && (
+          <div style={{ textAlign: 'center', marginTop: '3.5rem' }}>
+            <button
+              onClick={() => {
+                window.scrollTo(0, 0);
+                navigate('/services');
+              }}
+              className="btn btn-teal"
+              style={{
+                padding: '0.85rem 2.25rem',
+                fontSize: '1rem',
+                fontWeight: '600',
+                borderRadius: '50px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                boxShadow: '0 10px 25px -5px rgba(13, 148, 136, 0.35)',
+                cursor: 'pointer'
+              }}
+            >
+              <span>View All Treatment Services</span>
+              <ArrowUpRight size={18} />
+            </button>
+          </div>
+        )}
 
       </div>
 
@@ -289,3 +386,4 @@ const Services = () => {
 };
 
 export default Services;
+

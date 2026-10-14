@@ -23,9 +23,12 @@
 
 .patient-portal-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 100vh;
   align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Full-Height Left Sidebar Panel */
@@ -217,6 +220,10 @@
 .patient-content-area {
   padding: 2.25rem 2.5rem 4rem;
   background-color: #f4f7fb;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .patient-hero-bar {
@@ -402,12 +409,22 @@
   border-radius: 10px;
   padding: 1.25rem;
   margin-bottom: 1rem;
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .apt-item-main {
   display: flex;
   align-items: center;
   gap: 1.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.apt-details {
+  flex: 1;
+  min-width: 0;
 }
 
 .apt-date-badge {
@@ -419,17 +436,22 @@
   align-items: center;
   gap: 0.5rem;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .apt-details h3 {
   font-size: 1.05rem;
   color: var(--navy-bg);
   margin-bottom: 0.2rem;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .apt-doc {
   font-size: 0.85rem;
   color: var(--text-dark-muted);
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .apt-time {
@@ -439,6 +461,8 @@
   align-items: center;
   gap: 0.3rem;
   margin-top: 0.2rem;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .apt-item-right {
@@ -446,6 +470,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .action-btn-danger-text {
@@ -1207,6 +1232,33 @@
   box-shadow: 0 0 0 3px rgba(0, 180, 147, 0.15) !important;
 }
 
+.password-toggle-btn {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  z-index: 5;
+  transition: color 0.2s ease, transform 0.15s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #00b493;
+}
+
+.password-toggle-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
 .auth-submit-btn {
   width: 100%;
   justify-content: center;
@@ -1288,12 +1340,89 @@
   cursor: pointer;
 }
 
+/* Mobile Dashboard Topbar & Sidebar Responsive Toggle */
+.mobile-dashboard-header {
+  display: none;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.85rem 1.15rem;
+  margin-bottom: 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.mobile-tab-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.mobile-tab-label {
+  font-size: 0.725rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mobile-tab-name {
+  font-size: 1rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.mobile-sidebar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #00b493;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-sidebar-toggle-btn:hover {
+  background: #009d80;
+}
+
 @media (max-width: 900px) {
+  .mobile-dashboard-header {
+    display: flex;
+    width: 100%;
+    margin-bottom: 1.25rem;
+    box-sizing: border-box;
+  }
+  .patient-sidebar {
+    display: none;
+  }
+  .patient-sidebar.mobile-sidebar-open {
+    display: flex !important;
+    position: static;
+    min-height: auto;
+    width: 100%;
+    border-right: none;
+    margin-bottom: 1.5rem;
+    animation: fadeInModal 0.2s ease-out;
+  }
   .patient-portal-layout {
     grid-template-columns: 1fr;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  .patient-content-area {
+    padding: 1.25rem 1.25rem 3rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .doctors-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr !important;
   }
   .patient-kpi-grid {
     grid-template-columns: 1fr;
@@ -1304,14 +1433,74 @@
 }
 
 @media (max-width: 640px) {
+  .apt-item-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.85rem !important;
+  }
+  .apt-item-main {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .apt-item-right {
+    width: 100% !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    flex-wrap: wrap !important;
+  }
+  .apt-item-right .btn,
+  .apt-item-right button,
+  .apt-item-right a {
+    white-space: nowrap !important;
+    word-break: normal !important;
+  }
+  .patient-content-area {
+    padding: 0.85rem 0.85rem 2.5rem !important;
+  }
+  .patient-welcome h1 {
+    font-size: 1.45rem !important;
+  }
   .doctors-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .doc-actions-row {
     grid-template-columns: 1fr;
   }
   .booking-type-tabs {
     grid-template-columns: 1fr;
+  }
+  .patient-dashboard-container,
+  .admin-container {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+  .admin-panel {
+    padding: 1rem !important;
+  }
+  .admin-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .doc-search-input input {
+    font-size: 0.825rem;
+  }
+  .filter-pill {
+    font-size: 0.775rem;
+    padding: 0.35rem 0.65rem;
+  }
+  .doctor-card {
+    padding: 1rem;
+  }
+  .doc-card-top {
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+  .doc-card-avatar {
+    width: 52px;
+    height: 52px;
   }
 }
 
@@ -1664,6 +1853,11 @@
   border-radius: 16px;
   padding: 1.75rem;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .admin-panel-header {
@@ -1675,6 +1869,10 @@
   border-bottom: 1px solid #f1f5f9;
   flex-wrap: wrap;
   gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .admin-panel-title {
@@ -1682,11 +1880,16 @@
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Tables */
 .admin-table {
   width: 100%;
+  min-width: 650px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -1700,6 +1903,7 @@
   letter-spacing: 0.03em;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 .admin-table td {
@@ -1734,12 +1938,32 @@
 
 /* Responsive Table Wrapper */
 .table-responsive {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
   margin-top: 0.5rem;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 6px;
+}
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #00b493;
 }
 
 /* Status Badges */
@@ -1805,13 +2029,15 @@
 }
 
 /* Notifications List */
-.notifications-list {
+.notifications-list,
+.notifs-list {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-.notif-item {
+.notif-item,
+.notif-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
@@ -1820,14 +2046,25 @@
   flex-direction: column;
   gap: 0.5rem;
   transition: all 0.2s ease;
+  cursor: pointer;
+  user-select: none;
 }
 
-.notif-item.unread {
+.notif-item:hover,
+.notif-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.notif-item.unread,
+.notif-card.unread {
   background: #f0fdf4;
-  border-color: #bbf7d0;
+  border-color: #86efac;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.08);
 }
 
-.notif-header {
+.notif-header,
+.notif-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2348,5 +2585,66 @@
   background: #f1f5f9;
   border-color: #0284c7;
 }
+
+/* Site-wide Pagination Styling */
+.pagination-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0.5rem 0.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.pagination-info {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.pagination-info strong {
+  color: #1e293b;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pagination-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #0d9488;
+  color: #0d9488;
+  background: #f0fdf4;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination-num-btn.active {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+  font-weight: 700;
+}
+
 
 

@@ -16,10 +16,10 @@ const Home = () => {
       <Header />
       <Hero />
       <About />
-      <Services />
+      <Services isHomePage={true} />
       <WhyChooseUs />
       <Testimonials />
-      <BlogSection />
+      <BlogSection limit={3} showViewMore={true} />
       <ContactSection showHeroBanner={false} showFaq={false} />
       <FAQ />
       <Footer />

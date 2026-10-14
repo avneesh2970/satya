@@ -64,6 +64,20 @@ export const AuthProvider = ({ children }) => {
     return await api.changePassword(passwordData);
   };
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem('satya_token');
+    if (token) {
+      try {
+        const res = await api.getMe();
+        setUser(res.data);
+        return res.data;
+      } catch (error) {
+        console.error("Session refresh failed:", error);
+      }
+    }
+    return null;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -74,6 +88,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         updateProfile,
         changePassword,
+        refreshUser,
         isAuthenticated: !!user
       }}
     >

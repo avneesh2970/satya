@@ -37,8 +37,50 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["patient", "doctor", "admin"],
+      enum: ["patient", "doctor", "admin", "physio"],
       default: "patient"
+    },
+    // Physio Professional Registration & Approval Fields
+    qualification: { type: String, default: "" },
+    specialization: { type: String, default: "" },
+    experience: { type: Number, default: 0 },
+    registrationNumber: { type: String, default: "" },
+    registrationAuthority: { type: String, default: "" },
+    clinicName: { type: String, default: "" },
+    city: { type: String, default: "" },
+    consultationType: { type: String, default: "" },
+    registrationCertificate: { type: String, default: "" },
+    profilePhoto: { type: String, default: "" },
+    certifications: { type: [String], default: [] },
+    languages: { type: [String], default: [] },
+    bio: { type: String, default: "" },
+    areasOfExpertise: { type: [String], default: [] },
+    registrationStatus: {
+      type: String,
+      enum: ["INCOMPLETE", "COMPLETED"],
+      default: "INCOMPLETE"
+    },
+    approvalStatus: {
+      type: String,
+      enum: ["PENDING", "APPROVED", "REJECTED"],
+      default: "PENDING"
+    },
+    isApproved: {
+      type: Boolean,
+      default: false
+    },
+    rejectionReason: {
+      type: String,
+      default: null
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    approvedAt: {
+      type: Date,
+      default: null
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date

@@ -45,6 +45,10 @@ const blogSchema = new mongoose.Schema(
     published: {
       type: Boolean,
       default: true
+    },
+    isReadAdmin: {
+      type: Boolean,
+      default: false
     }
   },
   {

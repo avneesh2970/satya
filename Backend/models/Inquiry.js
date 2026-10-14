@@ -33,6 +33,10 @@ const inquirySchema = new mongoose.Schema(
       type: String,
       enum: ["new", "contacted", "closed"],
       default: "new"
+    },
+    isReadAdmin: {
+      type: Boolean,
+      default: false
     }
   },
   {

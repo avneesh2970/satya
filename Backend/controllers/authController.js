@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { sendNotification, notifyAdmins } = require("../utils/notificationHelper");
 const Physiotherapist = require("../models/Physiotherapist");
 
 // Helper to generate JWT Token
@@ -33,13 +34,17 @@ const sendTokenResponse = (user, statusCode, res, message = "Success") => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatar || "",
-        address: user.address || ""
+        avatar: user.avatar || user.profilePhoto || "",
+        address: user.address || "",
+        registrationStatus: user.registrationStatus || "INCOMPLETE",
+        approvalStatus: user.approvalStatus || "PENDING",
+        isApproved: user.isApproved || false,
+        rejectionReason: user.rejectionReason || null
       }
     });
 };
 
-// @desc    Register a new user account (patient or doctor)
+// @desc    Register a new user account (patient, physio, or doctor)
 // @route   POST /api/v1/auth/register
 // @access  Public
 const register = async (req, res, next) => {
@@ -53,7 +58,7 @@ const register = async (req, res, next) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -61,15 +66,23 @@ const register = async (req, res, next) => {
       });
     }
 
-    const validRole = ["doctor", "admin", "patient"].includes(role) ? role : "patient";
+    const validRole = ["doctor", "admin", "patient", "physio"].includes(role) ? role : "patient";
 
-    const user = await User.create({
+    const userPayload = {
       name,
-      email,
+      email: email.toLowerCase().trim(),
       phone,
       password,
       role: validRole
-    });
+    };
+
+    if (validRole === "physio") {
+      userPayload.registrationStatus = "INCOMPLETE";
+      userPayload.approvalStatus = "PENDING";
+      userPayload.isApproved = false;
+    }
+
+    const user = await User.create(userPayload);
 
     if (validRole === "doctor") {
       await Physiotherapist.create({
@@ -176,6 +189,13 @@ const updateProfile = async (req, res, next) => {
       runValidators: true
     });
 
+    await sendNotification({
+      userId: req.user.id,
+      title: "Profile Updated",
+      message: "Your profile details have been updated successfully.",
+      type: "system"
+    }).catch(err => console.error("Notification error:", err));
+
     res.status(200).json({
       success: true,
       message: "Profile updated successfully!",
@@ -213,7 +233,159 @@ const changePassword = async (req, res, next) => {
     user.password = newPassword;
     await user.save();
 
+    await sendNotification({
+      userId: req.user.id,
+      title: "Password Changed",
+      message: "Your account password was changed successfully.",
+      type: "system"
+    }).catch(err => console.error("Notification error:", err));
+
     sendTokenResponse(user, 200, res, "Password changed successfully!");
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Complete Professional Physio Registration
+// @route   POST /api/v1/auth/physio-registration
+// @access  Private (Physio)
+const completePhysioRegistration = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.role !== "physio" && user.role !== "doctor") {
+      return res.status(403).json({ success: false, message: "Only physio accounts can complete professional registration" });
+    }
+
+    const {
+      qualification,
+      specialization,
+      experience,
+      registrationNumber,
+      registrationAuthority,
+      clinicName,
+      city,
+      address,
+      consultationType,
+      languages,
+      bio,
+      areasOfExpertise
+    } = req.body;
+
+    if (!qualification || !specialization || !experience || !registrationNumber || !registrationAuthority || !city || !consultationType) {
+      return res.status(400).json({
+        success: false,
+        message: "Please fill in all required professional and practice details."
+      });
+    }
+
+    // Helper to upload file buffer safely
+    const handleFileUpload = async (file, folderName) => {
+      if (!file) return "";
+      try {
+        if (process.env.CLOUDINARY_CLOUD_NAME) {
+          const { uploadToCloudinary } = require("../config/cloudinary");
+          const result = await uploadToCloudinary(file.buffer, folderName, file.originalname);
+          return result.secure_url;
+        }
+      } catch (err) {
+        console.error("Cloudinary upload failed, using local disk fallback:", err.message);
+      }
+      // Local fallback
+      const fs = require("fs");
+      const path = require("path");
+      const uploadDir = path.join(__dirname, "../uploads/physio-docs");
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filename = `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const destPath = path.join(uploadDir, filename);
+      fs.writeFileSync(destPath, file.buffer);
+      return `/uploads/physio-docs/${filename}`;
+    };
+
+    let regCertUrl = user.registrationCertificate || "";
+    let profilePhotoUrl = user.profilePhoto || user.avatar || "";
+    let certUrls = user.certifications || [];
+
+    if (req.files) {
+      if (req.files.registrationCertificate && req.files.registrationCertificate[0]) {
+        regCertUrl = await handleFileUpload(req.files.registrationCertificate[0], "clinic/physio-certificates");
+      }
+      if (req.files.profilePhoto && req.files.profilePhoto[0]) {
+        profilePhotoUrl = await handleFileUpload(req.files.profilePhoto[0], "clinic/physio-avatars");
+      }
+      if (req.files.certifications && req.files.certifications.length > 0) {
+        const uploadedCerts = await Promise.all(
+          req.files.certifications.map(f => handleFileUpload(f, "clinic/physio-certifications"))
+        );
+        certUrls = [...certUrls, ...uploadedCerts.filter(Boolean)];
+      }
+    }
+
+    const parseArrayField = (val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val === "string") {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+          return val.split(",").map(s => s.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+
+    user.qualification = qualification;
+    user.specialization = specialization;
+    user.experience = Number(experience) || 0;
+    user.registrationNumber = registrationNumber;
+    user.registrationAuthority = registrationAuthority;
+    user.clinicName = clinicName || "";
+    user.city = city;
+    user.address = address || "";
+    user.consultationType = consultationType;
+    user.languages = parseArrayField(languages);
+    user.bio = bio || "";
+    user.areasOfExpertise = parseArrayField(areasOfExpertise);
+
+    if (regCertUrl) user.registrationCertificate = regCertUrl;
+    if (profilePhotoUrl) {
+      user.profilePhoto = profilePhotoUrl;
+      user.avatar = profilePhotoUrl;
+    }
+    if (certUrls.length > 0) user.certifications = certUrls;
+
+    user.registrationStatus = "COMPLETED";
+    user.approvalStatus = "PENDING";
+    user.isApproved = false;
+    user.rejectionReason = null;
+
+    await user.save();
+
+    // Send notifications
+    await sendNotification({
+      userId: user._id,
+      title: "Registration Submitted Successfully",
+      message: "Your professional details and certificates have been submitted for verification. Your application is currently under Admin review.",
+      type: "system"
+    }).catch(err => console.error("Notification error:", err));
+
+    await notifyAdmins({
+      title: "New Physiotherapist Registration",
+      message: `${user.name} (${user.email}) has submitted their professional registration and is waiting for Admin approval.`,
+      type: "system"
+    }).catch(err => console.error("Admin notification error:", err));
+
+    res.status(200).json({
+      success: true,
+      message: "Professional details submitted successfully and are currently under Admin review.",
+      data: user
+    });
   } catch (error) {
     next(error);
   }
@@ -225,5 +397,6 @@ module.exports = {
   logout,
   getMe,
   updateProfile,
-  changePassword
+  changePassword,
+  completePhysioRegistration
 };

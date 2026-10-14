@@ -10,6 +10,19 @@ const WhySatyaPage = () => {
       
       {/* Why Satya Hero Banner */}
       <section className="about-hero-section">
+        <div className="hero-bg-wrapper">
+          <video 
+            src="/videos/why2.mp4" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline
+            className="hero-bg-video"
+            style={{ opacity: 0.45 }}
+          />
+          <div className="hero-bg-overlay"></div>
+        </div>
+
         <div className="hero-ambient-glow glow-1"></div>
         <div className="hero-ambient-glow glow-2"></div>
         <div className="container relative-z">
@@ -22,18 +35,6 @@ const WhySatyaPage = () => {
             <p className="about-hero-sub">
               We combine senior MPT doctor expertise, Class IV laser technology, zero wait times, and exclusive 1-on-1 sessions to ensure lasting recovery.
             </p>
-
-            <div className="contact-quick-badges about-hero-badges">
-              <div className="quick-badge-item animated-float-1">
-                <span>🏆 Master's (MPT) Doctors</span>
-              </div>
-              <div className="quick-badge-item animated-float-2">
-                <span>⏱️ Zero Wait Appointments</span>
-              </div>
-              <div className="quick-badge-item animated-float-3">
-                <span>🤝 Dedicated 1-on-1 Sessions</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>

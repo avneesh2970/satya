@@ -17,7 +17,7 @@ const DoctorProfileModal = ({ doctor, isOpen, onClose, onSelectBooking }) => {
         {/* Doctor Summary Banner */}
         <div className="doc-profile-top">
           <div className="doc-avatar-wrap">
-            <img src={doctor.avatar || "/images/SATYA.jpeg"} alt={doctor.name} className="doc-avatar-img" />
+            <img src={doctor.avatar || doctor.profilePhoto || doctor.user?.profilePhoto || doctor.user?.avatar || "/images/SATYA.jpeg"} alt={doctor.name} className="doc-avatar-img" />
           </div>
           <div className="doc-title-info">
             <span className="doc-tag">{doctor.specialization}</span>

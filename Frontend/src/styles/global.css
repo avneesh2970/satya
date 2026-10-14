@@ -67,6 +67,34 @@ button {
   outline: none;
 }
 
+/* Ensure all form controls across the app use the exact same primary font family */
+input,
+select,
+textarea,
+button,
+optgroup,
+option,
+label,
+form,
+fieldset,
+legend,
+.form-group,
+.form-control,
+.form-select,
+.form-label,
+.input-with-icon input,
+.input-with-icon select,
+.input-with-icon textarea {
+  font-family: var(--font-sans) !important;
+}
+
+::placeholder,
+::-webkit-input-placeholder,
+::-moz-placeholder,
+:-ms-input-placeholder {
+  font-family: var(--font-sans) !important;
+}
+
 html {
   scroll-behavior: smooth;
   font-family: var(--font-sans);
@@ -74,10 +102,21 @@ html {
   color: var(--text-dark-body);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
   overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
+#root, .patient-dashboard-root, .patient-main-page {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 a {
@@ -199,4 +238,37 @@ img {
   color: var(--teal);
   transform: translateY(-2px);
   box-shadow: var(--shadow-light-md);
+}
+
+/* ==========================================================================
+   GLOBAL TEXT WRAPPING & TRUNCATION SAFETY RULES
+   ========================================================================== */
+
+p, span, h1, h2, h3, h4, h5, h6, label, td, th, div, a {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.status-badge, .sidebar-link, .tag-chip, .quick-badge-item, .doc-btn-sm, .action-btn-danger-text {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  white-space: nowrap !important;
+}
+
+.btn, button, .form-submit-btn, button[type="submit"] {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  text-align: center;
+  justify-content: center;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
 }

@@ -97,7 +97,7 @@ const DoctorDirectory = ({ onSelectBooking }) => {
           {doctors.map((doc) => (
             <div key={doc._id} className="light-card doctor-card">
               <div className="doc-card-top">
-                <img src={doc.avatar || "/images/SATYA.jpeg"} alt={doc.name} className="doc-card-avatar" />
+                <img src={doc.avatar || doc.profilePhoto || doc.user?.profilePhoto || doc.user?.avatar || "/images/SATYA.jpeg"} alt={doc.name} className="doc-card-avatar" />
                 <div className="doc-card-meta">
                   <span className="spec-badge">{doc.specialization}</span>
                   <h3>{doc.name}</h3>

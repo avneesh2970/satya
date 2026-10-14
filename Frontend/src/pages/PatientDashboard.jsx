@@ -1,46 +1,180 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Calendar, Clock, User, Phone, Mail, FileText, Bell, Lock, Home,
-  Search, Plus, CheckCircle2, AlertCircle, X, ShieldCheck,
-  Video, MapPin, LogOut, ArrowRight, Download, RefreshCw, Eye
+  Search, Plus, CheckCircle2, AlertCircle, X, Menu, ShieldCheck,
+  Video, MapPin, LogOut, ArrowRight, Download, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import DoctorDirectory from '../components/doctors/DoctorDirectory';
 import BookingModal from '../components/booking/BookingModal';
+import Pagination from '../components/common/Pagination';
 import '../styles/admin.css';
 
 const PatientDashboard = () => {
-  const { user, logout, updateProfile, changePassword } = useAuth();
+  const { user, logout, updateProfile, changePassword, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    if (user.role === 'physio') {
+      if (user.registrationStatus === 'INCOMPLETE') {
+        navigate('/physio/register', { replace: true });
+        return;
+      }
+      if (user.approvalStatus === 'PENDING') {
+        navigate('/physio/pending-approval', { replace: true });
+        return;
+      }
+      if (user.approvalStatus === 'REJECTED') {
+        navigate('/physio/rejected', { replace: true });
+        return;
+      }
+      if (user.approvalStatus === 'APPROVED' && user.isApproved) {
+        navigate('/doctor-dashboard', { replace: true });
+        return;
+      }
+      navigate('/physio/pending-approval', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  const getTabFromUrl = () => {
+    let rawTab = searchParams.get('tab');
+    if (!rawTab) {
+      const pathParts = location.pathname.split('/').filter(Boolean);
+      if (pathParts.length > 1 && pathParts[0] === 'patient-dashboard') {
+        rawTab = pathParts[1];
+      }
+    }
+    if (!rawTab) return 'overview';
+    if (rawTab === 'consultations' || rawTab === 'online-consultations') return 'online';
+    return rawTab;
+  };
+
+  const [activeTab, setActiveTabState] = useState(getTabFromUrl);
+
+  const markNotificationsAsReadIfNeeded = (tabName, currentNotifsList = null) => {
+    if (tabName === 'notifications') return;
+
+    setNotifications((prev) => {
+      const list = currentNotifsList || prev;
+      if (!list || list.length === 0) return prev;
+
+      let targetType = null;
+      let isMatchingNotification = () => false;
+
+      if (tabName === 'appointments') {
+        targetType = 'appointment';
+        isMatchingNotification = (n) => n.type === 'appointment' || (n.title && n.title.toLowerCase().includes('appointment'));
+      } else if (tabName === 'online') {
+        targetType = 'consultation';
+        isMatchingNotification = (n) => n.type === 'consultation' || (n.title && n.title.toLowerCase().includes('consultation'));
+      } else if (tabName === 'reports') {
+        targetType = 'system';
+        isMatchingNotification = (n) => n.type === 'system' || (n.title && (n.title.toLowerCase().includes('report') || n.title.toLowerCase().includes('document')));
+      } else {
+        // Overview or general tab switch: mark all unread as read in DB
+        isMatchingNotification = () => true;
+      }
+
+      const matchingUnread = list.filter((n) => !n.read && isMatchingNotification(n));
+      if (matchingUnread.length > 0) {
+        if (targetType) {
+          api.markNotificationsTypeRead({ type: targetType }).catch((err) => {
+            console.error(`Failed to mark ${targetType} notifications as read in DB:`, err);
+          });
+        } else {
+          api.markAllNotificationsRead().catch((err) => {
+            console.error("Failed to mark all notifications as read in DB:", err);
+          });
+        }
+
+        return prev.map((n) => {
+          if (!n.read && isMatchingNotification(n)) {
+            return { ...n, read: true };
+          }
+          return n;
+        });
+      }
+
+      return prev;
+    });
+  };
+
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const setActiveTab = (newTab, replace = false) => {
+    setActiveTabState(newTab);
+    setSearchParams({ tab: newTab }, { replace });
+    setMobileSidebarOpen(false);
+    markNotificationsAsReadIfNeeded(newTab);
+  };
+
+  useEffect(() => {
+    const urlTab = getTabFromUrl();
+    if (urlTab !== activeTab) {
+      setActiveTabState(urlTab);
+      markNotificationsAsReadIfNeeded(urlTab);
+    }
+  }, [location.pathname, location.search]);
+
   const [appointments, setAppointments] = useState([]);
   const [onlineConsultations, setOnlineConsultations] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Booking Modal Trigger
+  const [selectedBookingType, setSelectedBookingType] = useState('in-person');
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingModalType, setBookingModalType] = useState('in-person');
   const [preselectedDoctor, setPreselectedDoctor] = useState(null);
+  const [selectedReportFile, setSelectedReportFile] = useState(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState('');
+  const [uploadingReport, setUploadingReport] = useState(false);
+  const [reportMsg, setReportMsg] = useState({ type: '', text: '' });
+  const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
+  const [pageApts, setPageApts] = useState(1);
+  const [pageOnline, setPageOnline] = useState(1);
+  const [pageNotifs, setPageNotifs] = useState(1);
+  const [pageReports, setPageReports] = useState(1);
 
-  // Profile Form State
+  const totalAptPages = Math.ceil(appointments.length / 10);
+  const paginatedAppointments = appointments.slice((pageApts - 1) * 10, pageApts * 10);
+
+  const totalOnlinePages = Math.ceil(onlineConsultations.length / 10);
+  const paginatedOnline = onlineConsultations.slice((pageOnline - 1) * 10, pageOnline * 10);
+
+  const totalNotifPages = Math.ceil(notifications.length / 10);
+  const paginatedNotifs = notifications.slice((pageNotifs - 1) * 10, pageNotifs * 10);
+
+  const totalReportPages = Math.ceil(reports.length / 10);
+  const paginatedReports = reports.slice((pageReports - 1) * 10, pageReports * 10);
+
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
     address: user?.address || ''
   });
-  const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
 
-  // Password Form State
+  const [passForm, setPassForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: ''
   });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
 
   useEffect(() => {
@@ -67,19 +201,70 @@ const PatientDashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [aptsRes, onlRes, notifRes] = await Promise.all([
+      const [aptsRes, onlRes, notifRes, repRes] = await Promise.all([
         api.getMyAppointments().catch(() => ({ data: [] })),
         api.getMyOnlineConsultations().catch(() => ({ data: [] })),
-        api.getNotifications().catch(() => ({ data: [], unreadCount: 0 }))
+        api.getNotifications().catch(() => ({ data: [], unreadCount: 0 })),
+        api.getMyReports().catch(() => ({ data: [] }))
       ]);
+
+      const rawNotifs = notifRes.data || [];
+      const currentTab = getTabFromUrl();
 
       setAppointments(aptsRes.data || []);
       setOnlineConsultations(onlRes.data || []);
-      setNotifications(notifRes.data || []);
+      setReports(repRes.data || []);
+      setNotifications(rawNotifs);
+
+      if (currentTab !== 'notifications') {
+        setTimeout(() => {
+          markNotificationsAsReadIfNeeded(currentTab, rawNotifs);
+        }, 10);
+      }
     } catch (err) {
       console.error("Failed to load patient dashboard data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReportUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedReportFile) {
+      setReportMsg({ type: 'error', text: 'Please select a medical report file (PDF, JPG, JPEG, or PNG).' });
+      return;
+    }
+    setUploadingReport(true);
+    setReportMsg({ type: '', text: '' });
+    try {
+      const formData = new FormData();
+      formData.append('reportFile', selectedReportFile);
+      if (selectedAppointmentId) {
+        formData.append('appointmentId', selectedAppointmentId);
+      }
+
+      await api.uploadReport(formData);
+      setReportMsg({ type: 'success', text: 'Medical report uploaded successfully to Cloudinary!' });
+      setSelectedReportFile(null);
+      setSelectedAppointmentId('');
+      const fileInput = document.getElementById('medical-report-file-input');
+      if (fileInput) fileInput.value = '';
+      loadDashboardData();
+    } catch (err) {
+      setReportMsg({ type: 'error', text: err.message || 'Failed to upload medical report' });
+    } finally {
+      setUploadingReport(false);
+    }
+  };
+
+  const handleDeleteReport = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this medical report?')) return;
+    try {
+      await api.deleteReport(id);
+      setReportMsg({ type: 'success', text: 'Medical report deleted successfully.' });
+      loadDashboardData();
+    } catch (err) {
+      setReportMsg({ type: 'error', text: err.message || 'Failed to delete report' });
     }
   };
 
@@ -122,12 +307,18 @@ const PatientDashboard = () => {
     }
   };
 
-  const handleMarkNotificationRead = async (id) => {
+  const handleNotificationClick = async (notif) => {
+    if (!notif || notif.read) return;
     try {
-      await api.markNotificationRead(id);
-      loadDashboardData();
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notif._id ? { ...n, read: true } : n))
+      );
+      await api.markNotificationRead(notif._id);
     } catch (err) {
       console.error("Notification mark read failed:", err);
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notif._id ? { ...n, read: false } : n))
+      );
     }
   };
 
@@ -140,6 +331,23 @@ const PatientDashboard = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
+  const isUpcomingAppointment = (apt) => {
+    if (!apt) return false;
+    const activeStatuses = ['PENDING_ADMIN_APPROVAL', 'PENDING_PHYSIOTHERAPIST_APPROVAL', 'CONFIRMED', 'upcoming'];
+    if (!activeStatuses.includes(apt.status)) return false;
+
+    if (apt.date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const aptDate = new Date(apt.date);
+      if (!isNaN(aptDate.getTime())) {
+        aptDate.setHours(23, 59, 59, 999);
+        if (aptDate < today) return false;
+      }
+    }
+    return true;
+  };
+
   const unreadNotifs = notifications.filter((n) => !n.read).length;
 
   return (
@@ -150,7 +358,7 @@ const PatientDashboard = () => {
           {/* Sidebar + Main Grid */}
           <div className="patient-portal-layout">
             {/* Sidebar Navigation */}
-            <aside className="patient-sidebar">
+            <aside className={`patient-sidebar ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}>
               <nav className="sidebar-menu">
                 {/* User Profile Summary Header (Unified in single block) */}
                 <div className="sidebar-user-card-header">
@@ -190,6 +398,15 @@ const PatientDashboard = () => {
                   <span className="sidebar-link-icon"><Video size={18} /></span>
                   <span className="sidebar-link-text">Online Consultations</span>
                   {onlineConsultations.length > 0 && <span className="sidebar-badge">{onlineConsultations.length}</span>}
+                </button>
+
+                <button
+                  className={`sidebar-link ${activeTab === 'reports' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('reports')}
+                >
+                  <span className="sidebar-link-icon"><FileText size={18} /></span>
+                  <span className="sidebar-link-text">Medical Reports</span>
+                  {reports.length > 0 && <span className="sidebar-badge">{reports.length}</span>}
                 </button>
 
                 <button
@@ -289,6 +506,31 @@ const PatientDashboard = () => {
 
             {/* Main Panel Content (RIGHT SIDE) */}
             <div className="patient-content-area">
+              {/* Mobile Dashboard Topbar Toggle */}
+              <div className="mobile-dashboard-header">
+                <div className="mobile-tab-info">
+                  <span className="mobile-tab-label">Current View</span>
+                  <strong className="mobile-tab-name">
+                    {activeTab === 'overview' && 'Overview'}
+                    {activeTab === 'appointments' && 'My Appointments'}
+                    {activeTab === 'online' && 'Online Consultations'}
+                    {activeTab === 'reports' && 'Medical Reports'}
+                    {activeTab === 'doctors' && 'Find Specialists'}
+                    {activeTab === 'notifications' && `Notifications ${unreadNotifs > 0 ? `(${unreadNotifs})` : ''}`}
+                    {activeTab === 'profile' && 'Edit Profile'}
+                    {activeTab === 'password' && 'Change Password'}
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-sidebar-toggle-btn"
+                  onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+                >
+                  {mobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+                  <span>{mobileSidebarOpen ? 'Close Menu' : 'Portal Menu'}</span>
+                </button>
+              </div>
+
               {/* Welcome Hero Bar (Positioned on the RIGHT side) */}
               <div className="patient-hero-bar">
                 <div className="patient-welcome">
@@ -311,7 +553,7 @@ const PatientDashboard = () => {
                         <div className="kpi-label">Clinic Appointments</div>
                         <div className="kpi-value">{appointments.length}</div>
                         <div className="kpi-sub">
-                          {appointments.filter((a) => a.status === 'upcoming').length} Upcoming Visits
+                          {appointments.filter(isUpcomingAppointment).length} Upcoming Visits
                         </div>
                       </div>
                     </div>
@@ -348,11 +590,11 @@ const PatientDashboard = () => {
                       </button>
                     </div>
 
-                    {appointments.filter((a) => a.status === 'upcoming').length > 0 ? (
+                    {appointments.filter(isUpcomingAppointment).length > 0 ? (
                       <div className="appointments-list-cards">
                         {appointments
-                          .filter((a) => a.status === 'upcoming')
-                          .slice(0, 2)
+                          .filter(isUpcomingAppointment)
+                          .slice(0, 3)
                           .map((apt) => (
                             <div key={apt._id} className="apt-item-card">
                               <div className="apt-item-main">
@@ -364,11 +606,26 @@ const PatientDashboard = () => {
                                   <h3>{apt.service}</h3>
                                   <p className="apt-doc">Specialist: <strong>{apt.specialist}</strong></p>
                                   <p className="apt-time"><Clock size={14} /> Time Slot: {apt.timeSlot}</p>
-                                  {apt.appointmentType === 'home' && (
+                                  {apt.appointmentType === 'home' ? (
                                     <p className="table-sub-text" style={{ color: '#d97706', marginTop: '0.2rem' }}>
                                       📍 Home Visit Address: {apt.homeAddress}, {apt.cityArea}
                                     </p>
+                                  ) : (
+                                    <p className="table-sub-text" style={{ color: '#64748b', marginTop: '0.2rem' }}>
+                                      📍 Venue: Satya Physiotherapy Center
+                                    </p>
                                   )}
+                                  <div style={{ marginTop: '0.4rem' }}>
+                                    {apt.status === 'PENDING_ADMIN_APPROVAL' && (
+                                      <span className="status-badge" style={{ background: '#fef3c7', color: '#b45309' }}>Waiting for Admin Approval</span>
+                                    )}
+                                    {apt.status === 'PENDING_PHYSIOTHERAPIST_APPROVAL' && (
+                                      <span className="status-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>Approved by Admin – Waiting for Physiotherapist</span>
+                                    )}
+                                    {(apt.status === 'CONFIRMED' || apt.status === 'upcoming') && (
+                                      <span className="status-badge status-upcoming">Appointment Confirmed</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <div className="apt-item-right">
@@ -413,6 +670,7 @@ const PatientDashboard = () => {
                   </div>
 
                   {appointments.length > 0 ? (
+                    <>
                     <div className="table-responsive">
                       <table className="admin-table">
                         <thead>
@@ -422,11 +680,10 @@ const PatientDashboard = () => {
                             <th>Date & Time</th>
                             <th>Venue / Address</th>
                             <th>Status</th>
-                            <th>Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {appointments.map((apt) => (
+                          {paginatedAppointments.map((apt) => (
                             <tr key={apt._id}>
                               <td>
                                 <div>
@@ -459,28 +716,43 @@ const PatientDashboard = () => {
                                 )}
                               </td>
                               <td>
-                                {apt.status === 'upcoming' && (
-                                  <span className="status-badge status-upcoming">Upcoming</span>
-                                )}
-                                {apt.status === 'completed' && (
-                                  <span className="status-badge status-completed">Completed</span>
-                                )}
-                                {apt.status === 'cancelled' && (
-                                  <span className="status-badge status-cancelled">Cancelled</span>
-                                )}
-                              </td>
-                              <td>
-                                {apt.status === 'upcoming' && (
-                                  <button className="action-btn-danger-text" onClick={() => handleCancelAppointment(apt._id)}>
-                                    Cancel
-                                  </button>
-                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.35rem' }}>
+                                  {apt.status === 'PENDING_ADMIN_APPROVAL' && (
+                                    <span className="status-badge" style={{ background: '#fef3c7', color: '#b45309' }}>Waiting for Admin Approval</span>
+                                  )}
+                                  {apt.status === 'PENDING_PHYSIOTHERAPIST_APPROVAL' && (
+                                    <span className="status-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>Approved by Admin – Waiting for Physiotherapist</span>
+                                  )}
+                                  {(apt.status === 'CONFIRMED' || apt.status === 'upcoming') && (
+                                    <span className="status-badge status-upcoming">Appointment Confirmed</span>
+                                  )}
+                                  {apt.status === 'REJECTED_BY_ADMIN' && (
+                                    <span className="status-badge status-cancelled">Rejected by Admin</span>
+                                  )}
+                                  {apt.status === 'REJECTED_BY_PHYSIOTHERAPIST' && (
+                                    <span className="status-badge status-cancelled">Rejected by Physiotherapist</span>
+                                  )}
+                                  {apt.status === 'completed' && (
+                                    <span className="status-badge status-completed">Completed</span>
+                                  )}
+                                  {apt.status === 'cancelled' && (
+                                    <span className="status-badge status-cancelled">Cancelled</span>
+                                  )}
+
+                                  {(apt.status === 'PENDING_ADMIN_APPROVAL' || apt.status === 'PENDING_PHYSIOTHERAPIST_APPROVAL' || apt.status === 'CONFIRMED' || apt.status === 'upcoming') && (
+                                    <button className="action-btn-danger-text" onClick={() => handleCancelAppointment(apt._id)} style={{ fontSize: '0.75rem', padding: '0.15rem 0' }}>
+                                      Cancel Booking
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    <Pagination currentPage={pageApts} totalPages={totalAptPages} onPageChange={setPageApts} totalItems={appointments.length} itemsPerPage={10} />
+                    </>
                   ) : (
                     <div className="empty-state-block">
                       <div className="empty-state-icon-wrap">
@@ -512,8 +784,9 @@ const PatientDashboard = () => {
                   </div>
 
                   {onlineConsultations.length > 0 ? (
+                    <>
                     <div className="online-requests-grid">
-                      {onlineConsultations.map((req) => (
+                      {paginatedOnline.map((req) => (
                         <div key={req._id} className="online-req-card">
                           <div className="req-header">
                             <span className="status-badge status-upcoming">{req.status}</span>
@@ -530,20 +803,20 @@ const PatientDashboard = () => {
 
                           {req.reportFile && (
                             <div className="req-attachment">
-                              <FileText size={16} className="info-icon-teal" />
+                              <Eye size={16} className="info-icon-teal" />
                               <a
-                                href={`http://localhost:5000${req.reportFile}`}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={req.reportFile.startsWith('http') ? req.reportFile : `http://localhost:5000${req.reportFile}`}
                                 className="report-link"
                               >
-                                View / Download Uploaded Medical Report
+                                View Uploaded Medical Report
                               </a>
                             </div>
                           )}
                         </div>
                       ))}
                     </div>
+                    <Pagination currentPage={pageOnline} totalPages={totalOnlinePages} onPageChange={setPageOnline} totalItems={onlineConsultations.length} itemsPerPage={10} />
+                    </>
                   ) : (
                     <div className="empty-state-block">
                       <div className="empty-state-icon-wrap">
@@ -556,6 +829,125 @@ const PatientDashboard = () => {
                           <Plus size={16} /> Request Online Consult
                         </button>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: MEDICAL REPORTS */}
+              {activeTab === 'reports' && (
+                <div className="admin-panel">
+                  <div className="admin-panel-header">
+                    <h2 className="admin-panel-title">Patient Medical Reports & Scans</h2>
+                  </div>
+
+                  {reportMsg.text && (
+                    <div className={`auth-alert ${reportMsg.type === 'success' ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: '1.25rem' }}>
+                      <AlertCircle size={18} />
+                      <span>{reportMsg.text}</span>
+                    </div>
+                  )}
+
+                  {/* Upload Form Card */}
+                  <div className="apt-item-card" style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', padding: '1.5rem', marginBottom: '1.5rem', display: 'block' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem' }}>
+                      Upload Diagnostic Report / Scan to Cloudinary
+                    </h3>
+                    <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.25rem' }}>
+                      Upload X-Ray, MRI, CT Scan, or Blood Work reports (PDF, JPG, JPEG, PNG up to 10MB).
+                    </p>
+
+                    <form onSubmit={handleReportUploadSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: '#334155' }}>Select File (PDF, Image) *</label>
+                        <input
+                          id="medical-report-file-input"
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                          required
+                          onChange={(e) => setSelectedReportFile(e.target.files[0])}
+                          style={{ padding: '0.5rem', background: '#fff', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: '#334155' }}>Link to Scheduled Appointment (Optional)</label>
+                        <select
+                          value={selectedAppointmentId}
+                          onChange={(e) => setSelectedAppointmentId(e.target.value)}
+                          style={{ padding: '0.65rem', background: '#fff', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
+                        >
+                          <option value="">General Medical History</option>
+                          {appointments.map((apt) => (
+                            <option key={apt._id} value={apt._id}>
+                              {apt.service} - {apt.specialist} ({apt.date})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <button type="submit" className="btn btn-teal" disabled={uploadingReport} style={{ width: '100%', height: '42px' }}>
+                          {uploadingReport ? (
+                            <>
+                              <RefreshCw size={16} className="spin-icon" style={{ animation: 'spin 1s linear infinite' }} /> Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={16} /> Upload Report
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Uploaded Reports List */}
+                  {reports.length > 0 ? (
+                    <div className="appointments-list-cards">
+                      {paginatedReports.map((rep) => (
+                        <div key={rep._id} className="apt-item-card">
+                          <div className="apt-item-main">
+                            <div className="apt-date-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                              <FileText size={20} />
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                                {rep.fileType?.includes('pdf') ? 'PDF' : 'IMAGE'}
+                              </span>
+                            </div>
+                            <div className="apt-details">
+                              <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>{rep.fileName}</h3>
+                              <p className="apt-doc">
+                                Uploaded: <strong>{new Date(rep.uploadedAt || rep.createdAt).toLocaleDateString()}</strong>
+                              </p>
+                              {rep.appointmentId && (
+                                <p className="apt-time" style={{ color: '#0284c7' }}>
+                                  Linked Visit: {rep.appointmentId.service} with {rep.appointmentId.specialist} ({rep.appointmentId.date})
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="apt-item-right" style={{ flexDirection: 'row', gap: '0.75rem', alignItems: 'center' }}>
+                            <a
+                              href={rep.fileUrl ? (rep.fileUrl.startsWith('http') ? rep.fileUrl : `http://localhost:5000${rep.fileUrl}`) : '#'}
+                              className="btn btn-outline-dark doc-btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              <Eye size={16} /> View Report
+                            </a>
+                            <button className="action-btn-danger-text" onClick={() => handleDeleteReport(rep._id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state-block">
+                      <div className="empty-state-icon-wrap">
+                        <FileText size={32} />
+                      </div>
+                      <h3>No Medical Reports Uploaded</h3>
+                      <p>You haven't uploaded any X-Ray, MRI, or lab diagnostic reports yet. Upload reports above to share with your physical therapists.</p>
                     </div>
                   )}
                 </div>
@@ -579,9 +971,14 @@ const PatientDashboard = () => {
                   </div>
 
                   {notifications.length > 0 ? (
+                    <>
                     <div className="notifs-list">
-                      {notifications.map((n) => (
-                        <div key={n._id} className={`notif-card ${!n.read ? 'unread' : ''}`}>
+                      {paginatedNotifs.map((n) => (
+                        <div
+                          key={n._id}
+                          className={`notif-card ${!n.read ? 'unread' : ''}`}
+                          onClick={() => handleNotificationClick(n)}
+                        >
                           <div className="notif-top">
                             <div className="notif-title">
                               <Bell size={16} className="info-icon-teal" />
@@ -590,14 +987,11 @@ const PatientDashboard = () => {
                             <span className="notif-time">{new Date(n.createdAt).toLocaleDateString()}</span>
                           </div>
                           <p className="notif-msg">{n.message}</p>
-                          {!n.read && (
-                            <button className="mark-read-btn" onClick={() => handleMarkNotificationRead(n._id)}>
-                              Mark as Read
-                            </button>
-                          )}
                         </div>
                       ))}
                     </div>
+                    <Pagination currentPage={pageNotifs} totalPages={totalNotifPages} onPageChange={setPageNotifs} totalItems={notifications.length} itemsPerPage={10} />
+                    </>
                   ) : (
                     <div className="panel-empty-state">
                       <p>No notifications available.</p>
@@ -681,25 +1075,51 @@ const PatientDashboard = () => {
                   <form onSubmit={handlePasswordSubmit} className="booking-form-body">
                     <div className="form-group">
                       <label>Current Password</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        value={passwordForm.currentPassword}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                      />
+                      <div className="input-icon-wrap">
+                        <Lock size={18} className="input-icon" />
+                        <input
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          required
+                          placeholder="••••••••"
+                          value={passwordForm.currentPassword}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                          style={{ paddingRight: '2.6rem' }}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle-btn"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          title={showCurrentPassword ? "Hide password" : "Show password"}
+                          aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+                        >
+                          {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="form-group">
                       <label>New Password</label>
-                      <input
-                        type="password"
-                        required
-                        minlength="6"
-                        placeholder="••••••••"
-                        value={passwordForm.newPassword}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      />
+                      <div className="input-icon-wrap">
+                        <Lock size={18} className="input-icon" />
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          required
+                          minLength="6"
+                          placeholder="••••••••"
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                          style={{ paddingRight: '2.6rem' }}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle-btn"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          title={showNewPassword ? "Hide password" : "Show password"}
+                          aria-label={showNewPassword ? "Hide password" : "Show password"}
+                        >
+                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
 
                     <button type="submit" className="btn btn-outline-dark">

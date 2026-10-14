@@ -17,15 +17,6 @@ const serviceSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: [
-        "Orthopedic Rehabilitation",
-        "Sports Injury & Performance",
-        "Neurological Recovery",
-        "Post-Surgical Rehabiliation",
-        "Class IV Laser & Pain Relief",
-        "Ergonomics & Posture Care",
-        "General Rehabilitation"
-      ],
       default: "Orthopedic Rehabilitation"
     },
     description: {

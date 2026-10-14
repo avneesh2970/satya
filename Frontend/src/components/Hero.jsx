@@ -29,7 +29,7 @@ const Hero = () => {
       {/* Full Section Background Video with Overlay */}
       <div className="hero-bg-wrapper">
         <video 
-          src="/videos/v1.mp4" 
+          src="/videos/Home.mp4" 
           autoPlay 
           loop 
           muted 

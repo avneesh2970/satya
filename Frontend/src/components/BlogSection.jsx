@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, User, ArrowUpRight, X, BookOpen, Calendar, ShieldCheck, Tag } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Clock, User, ArrowUpRight } from 'lucide-react';
 import { api } from '../services/api';
+import Pagination from './common/Pagination';
 
-const BlogSection = () => {
+const BlogSection = ({ limit, showViewMore = false }) => {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [page, setPage] = useState(1);
+  const navigate = useNavigate();
 
   const fallbackBlogs = [
     {
@@ -47,13 +50,15 @@ const BlogSection = () => {
     const fetchBlogs = async () => {
       try {
         const res = await api.getBlogs();
-        if (res.data && res.data.length > 0) {
+        if (res?.data && res.data.length > 0) {
           setBlogs(res.data);
+        } else if (Array.isArray(res) && res.length > 0) {
+          setBlogs(res);
         } else {
           setBlogs(fallbackBlogs);
         }
       } catch (err) {
-        console.error("Failed to load blogs:", err);
+        console.error("Failed to load blog articles:", err);
         setBlogs(fallbackBlogs);
       } finally {
         setLoading(false);
@@ -62,6 +67,9 @@ const BlogSection = () => {
 
     fetchBlogs();
   }, []);
+
+  const totalPages = Math.ceil(blogs.length / 10);
+  const displayedBlogs = limit ? blogs.slice(0, limit) : blogs.slice((page - 1) * 10, page * 10);
 
   return (
     <section className="blog-section section-padding" id="blog">
@@ -80,97 +88,75 @@ const BlogSection = () => {
 
         {/* Blog Cards Grid */}
         <div className="blog-grid">
-          {blogs.map((blog) => (
-            <div className="light-card blog-card" key={blog._id || blog.slug}>
-              
-              {/* Blog Image Wrapper */}
-              <div 
-                className="blog-img-wrapper"
-                onClick={() => setSelectedBlog(blog)}
-                style={{ cursor: 'pointer' }}
-              >
-                <img src={blog.image} alt={blog.title} className="blog-img" />
-                <span className="blog-category-badge">{blog.category}</span>
-              </div>
+          {displayedBlogs.map((blog) => {
+            const blogTarget = `/blogs/${blog.slug || blog._id}`;
+            return (
+              <div className="light-card blog-card" key={blog._id || blog.slug}>
+                
+                {/* Blog Image Wrapper */}
+                <Link to={blogTarget} className="blog-img-wrapper" style={{ display: 'block' }}>
+                  <img src={blog.image} alt={blog.title} className="blog-img" />
+                  <span className="blog-category-badge">{blog.category}</span>
+                </Link>
 
-              {/* Blog Card Content */}
-              <div className="blog-card-body">
-                <div className="blog-meta-row">
-                  <span className="blog-meta-item">
-                    <User size={14} />
-                    <span>{blog.author}</span>
-                  </span>
-                  <span className="blog-meta-item">
-                    <Clock size={14} />
-                    <span>{blog.readTime}</span>
-                  </span>
+                {/* Blog Card Content */}
+                <div className="blog-card-body">
+                  <div className="blog-meta-row">
+                    <span className="blog-meta-item">
+                      <User size={14} />
+                      <span>{blog.author}</span>
+                    </span>
+                    <span className="blog-meta-item">
+                      <Clock size={14} />
+                      <span>{blog.readTime}</span>
+                    </span>
+                  </div>
+
+                  <h3 className="blog-card-title">
+                    <Link to={blogTarget} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {blog.title}
+                    </Link>
+                  </h3>
+                  <p className="blog-card-excerpt">{blog.excerpt}</p>
+
+                  <Link to={blogTarget} className="card-link-teal blog-read-btn">
+                    <span>Read Full Article</span>
+                    <ArrowUpRight size={16} />
+                  </Link>
                 </div>
 
-                <h3 className="blog-card-title" onClick={() => setSelectedBlog(blog)} style={{ cursor: 'pointer' }}>
-                  {blog.title}
-                </h3>
-                <p className="blog-card-excerpt">{blog.excerpt}</p>
-
-                <button 
-                  type="button"
-                  className="card-link-teal blog-read-btn"
-                  onClick={() => setSelectedBlog(blog)}
-                >
-                  <span>Read Full Article</span>
-                  <ArrowUpRight size={16} />
-                </button>
               </div>
-
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {!limit && (
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={blogs.length} itemsPerPage={10} />
+        )}
+
+        {/* View More Blogs Button */}
+        {showViewMore && (
+          <div style={{ textAlign: 'center', marginTop: '2.75rem' }}>
+            <Link 
+              to="/blogs" 
+              className="btn btn-teal"
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '0.5rem', 
+                padding: '0.85rem 2rem',
+                fontSize: '1rem',
+                fontWeight: 600,
+                boxShadow: '0 4px 14px rgba(15, 118, 110, 0.25)'
+              }}
+            >
+              <span>View More Blogs</span>
+              <ArrowUpRight size={18} />
+            </Link>
+          </div>
+        )}
 
       </div>
-
-      {/* Full Article Detail Modal */}
-      {selectedBlog && (
-        <div className="service-modal-overlay" onClick={() => setSelectedBlog(null)}>
-          <div className="service-modal-container blog-modal-container" onClick={(e) => e.stopPropagation()}>
-            <button className="service-modal-close" onClick={() => setSelectedBlog(null)} aria-label="Close article">
-              <X size={20} />
-            </button>
-
-            <div className="blog-modal-banner">
-              <img src={selectedBlog.image} alt={selectedBlog.title} />
-              <span className="service-modal-tag">{selectedBlog.category}</span>
-            </div>
-
-            <div className="service-modal-content">
-              <div className="service-modal-header">
-                <h2>{selectedBlog.title}</h2>
-                <div className="service-modal-meta">
-                  <span className="meta-badge"><User size={14} /> {selectedBlog.author}</span>
-                  <span className="meta-badge"><Clock size={14} /> {selectedBlog.readTime}</span>
-                  <span className="meta-badge"><ShieldCheck size={14} /> Clinical Review Verified</span>
-                </div>
-              </div>
-
-              <div className="service-modal-body blog-modal-body">
-                <div className="blog-full-content">
-                  {selectedBlog.content.split('\n\n').map((paragraph, idx) => (
-                    <p key={idx}>{paragraph}</p>
-                  ))}
-                </div>
-              </div>
-
-              <div className="service-modal-footer">
-                <a href="#cta" className="btn btn-teal service-modal-book-btn" onClick={() => setSelectedBlog(null)}>
-                  <span>Book a Consultation with Dr. Satya</span>
-                  <ArrowUpRight size={18} />
-                </a>
-                <button className="btn btn-outline" onClick={() => setSelectedBlog(null)}>
-                  Close Article
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };

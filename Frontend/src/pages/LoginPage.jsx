@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { Mail, Lock, User, Phone, LogIn, UserPlus, CheckCircle2, AlertCircle, ShieldCheck, HeartHandshake, Award, Calendar } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, LogIn, UserPlus, CheckCircle2, AlertCircle, ShieldCheck, HeartHandshake, Award, Calendar } from 'lucide-react';
 import Header from '../components/common/Header.jsx';
 import Footer from '../components/common/Footer.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -13,7 +13,8 @@ const LoginPage = () => {
   const initialTab = searchParams.get('tab') === 'register' ? 'register' : 'login';
   
   const [activeTab, setActiveTab] = useState(initialTab);
-  const { login, register, isAuthenticated, user } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, register, isAuthenticated, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -28,7 +29,24 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const getRoleRedirectPath = (role) => {
+  const getRoleRedirectPath = (loggedUser) => {
+    if (!loggedUser) return '/login';
+    const role = loggedUser.role;
+    if (role === 'physio') {
+      if (loggedUser.registrationStatus === 'INCOMPLETE') {
+        return '/physio/register';
+      }
+      if (loggedUser.approvalStatus === 'PENDING') {
+        return '/physio/pending-approval';
+      }
+      if (loggedUser.approvalStatus === 'REJECTED') {
+        return '/physio/rejected';
+      }
+      if (loggedUser.approvalStatus === 'APPROVED' && loggedUser.isApproved) {
+        return '/doctor-dashboard';
+      }
+      return '/physio/pending-approval';
+    }
     if (role === 'doctor') return '/doctor-dashboard';
     if (role === 'admin') return '/admin';
     return '/patient-dashboard';
@@ -36,7 +54,7 @@ const LoginPage = () => {
 
   const handlePostAuthRedirect = (loggedUser) => {
     if (bookingState?.fromBooking) {
-      const targetPath = bookingState.returnUrl || (loggedUser?.role === 'patient' ? '/' : getRoleRedirectPath(loggedUser?.role));
+      const targetPath = bookingState.returnUrl || (loggedUser?.role === 'patient' ? '/' : getRoleRedirectPath(loggedUser));
       navigate(targetPath, {
         state: {
           autoOpenBooking: true,
@@ -46,15 +64,15 @@ const LoginPage = () => {
         }
       });
     } else {
-      navigate(getRoleRedirectPath(loggedUser?.role));
+      navigate(getRoleRedirectPath(loggedUser));
     }
   };
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (!authLoading && isAuthenticated && user) {
       handlePostAuthRedirect(user);
     }
-  }, [isAuthenticated, user]);
+  }, [authLoading, isAuthenticated, user]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -200,30 +218,22 @@ const LoginPage = () => {
                   <>
                     <div className="form-group">
                       <label>Account Type *</label>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
                         <button
                           type="button"
                           className={`btn ${formData.role === 'patient' ? 'btn-teal' : 'btn-outline-dark'}`}
                           onClick={() => setFormData({ ...formData, role: 'patient' })}
-                          style={{ padding: '0.65rem 0.3rem', fontSize: '0.8rem' }}
+                          style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem' }}
                         >
-                          Patient
+                          Patient Account
                         </button>
                         <button
                           type="button"
-                          className={`btn ${formData.role === 'doctor' ? 'btn-teal' : 'btn-outline-dark'}`}
-                          onClick={() => setFormData({ ...formData, role: 'doctor' })}
-                          style={{ padding: '0.65rem 0.3rem', fontSize: '0.8rem' }}
+                          className={`btn ${formData.role === 'physio' || formData.role === 'doctor' ? 'btn-teal' : 'btn-outline-dark'}`}
+                          onClick={() => navigate('/physio/signup')}
+                          style={{ padding: '0.65rem 0.5rem', fontSize: '0.85rem' }}
                         >
-                          Physio
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn ${formData.role === 'admin' ? 'btn-teal' : 'btn-outline-dark'}`}
-                          onClick={() => setFormData({ ...formData, role: 'admin' })}
-                          style={{ padding: '0.65rem 0.3rem', fontSize: '0.8rem' }}
-                        >
-                          Admin
+                          Physiotherapist Signup
                         </button>
                       </div>
                     </div>
@@ -282,14 +292,24 @@ const LoginPage = () => {
                   <div className="input-icon-wrap">
                     <Lock size={18} className="input-icon" />
                     <input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       name="password"
                       required
-                      minlength="6"
+                      minLength="6"
                       placeholder="••••••••"
                       value={formData.password}
                       onChange={handleChange}
+                      style={{ paddingRight: '2.6rem' }}
                     />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword(!showPassword)}
+                      title={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
 

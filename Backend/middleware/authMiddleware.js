@@ -61,4 +61,69 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, optionalAuth };
+const protectPhysio = async (req, res, next) => {
+  return protect(req, res, () => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized to access physio dashboard"
+      });
+    }
+
+    if (req.user.role !== "physio" && req.user.role !== "doctor") {
+      return res.status(403).json({
+        success: false,
+        message: "Access forbidden: Physio role required"
+      });
+    }
+
+    if (req.user.role === "physio" || (req.user.role === "doctor" && req.user.approvalStatus === "PENDING")) {
+      if (req.user.role === "physio" && req.user.registrationStatus === "INCOMPLETE") {
+        return res.status(403).json({
+          success: false,
+          code: "REGISTRATION_INCOMPLETE",
+          message: "Professional registration is incomplete",
+          registrationStatus: req.user.registrationStatus,
+          approvalStatus: req.user.approvalStatus
+        });
+      }
+
+      if (req.user.approvalStatus !== "APPROVED" || req.user.isApproved !== true) {
+        return res.status(403).json({
+          success: false,
+          code: req.user.approvalStatus === "REJECTED" ? "REGISTRATION_REJECTED" : "APPROVAL_PENDING",
+          message: req.user.approvalStatus === "REJECTED"
+            ? `Registration rejected: ${req.user.rejectionReason || "No reason specified"}`
+            : "Your account is awaiting admin approval",
+          registrationStatus: req.user.registrationStatus,
+          approvalStatus: req.user.approvalStatus,
+          rejectionReason: req.user.rejectionReason
+        });
+      }
+    }
+
+    next();
+  });
+};
+
+const protectAdmin = async (req, res, next) => {
+  return protect(req, res, () => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized to access admin portal"
+      });
+    }
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access forbidden: Admin role required"
+      });
+    }
+
+    next();
+  });
+};
+
+module.exports = { protect, optionalAuth, protectPhysio, protectAdmin };

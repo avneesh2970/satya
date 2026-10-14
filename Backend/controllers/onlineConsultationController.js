@@ -1,5 +1,8 @@
 const OnlineConsultation = require("../models/OnlineConsultation");
 const Notification = require("../models/Notification");
+const Report = require("../models/Report");
+const { sendNotification, notifyAdmins, resolvePatientUserId } = require("../utils/notificationHelper");
+const { uploadToCloudinary } = require("../config/cloudinary");
 
 const createOnlineConsultation = async (req, res, next) => {
   try {
@@ -13,8 +16,12 @@ const createOnlineConsultation = async (req, res, next) => {
     }
 
     let reportFilePath = "";
+    let cloudinaryPublicId = "";
     if (req.file) {
-      reportFilePath = `/uploads/${req.file.filename}`;
+      const folderPath = `clinic/patient-reports/${req.user?._id || "guest"}/online-consultations`;
+      const result = await uploadToCloudinary(req.file.buffer, folderPath, req.file.originalname);
+      reportFilePath = result.secure_url;
+      cloudinaryPublicId = result.public_id;
     }
 
     const consultationData = {
@@ -35,15 +42,36 @@ const createOnlineConsultation = async (req, res, next) => {
 
     const consultation = await OnlineConsultation.create(consultationData);
 
-   
-    if (req.user) {
-      await Notification.create({
-        user: req.user._id,
+    // Save metadata to Report collection if patient is authenticated & file attached
+    if (req.user && req.file && reportFilePath) {
+      await Report.create({
+        patientId: req.user._id,
+        appointmentId: null,
+        fileName: req.file.originalname,
+        fileUrl: reportFilePath,
+        publicId: cloudinaryPublicId,
+        fileType: req.file.mimetype,
+        uploadedAt: new Date()
+      }).catch(err => console.error("Report metadata creation error:", err));
+    }
+
+    // 1. Notify patient
+    const patientUserId = await resolvePatientUserId(consultation);
+    if (patientUserId) {
+      await sendNotification({
+        userId: patientUserId,
         title: "Online Consultation Request Submitted",
         message: `Your request for ${preferredDate} at ${preferredTime} has been received. Our clinical team will review your report and contact you shortly.`,
         type: "consultation"
       });
     }
+
+    // 2. Notify Admins
+    await notifyAdmins({
+      title: "New Online Consultation Request",
+      message: `New consultation request from ${name} (${phone}) for ${preferredDate} at ${preferredTime}. Condition: ${condition}`,
+      type: "consultation"
+    });
 
     res.status(201).json({
       success: true,

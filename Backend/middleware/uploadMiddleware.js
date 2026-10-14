@@ -1,39 +1,32 @@
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
-const uploadDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
-  }
-});
+// Keep file in memory buffer so it never gets stored permanently on local disk
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|webp|pdf/;
-  const extName = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimeType = allowedTypes.test(file.mimetype);
+  const allowedMimeTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png"
+  ];
 
-  if (extName && mimeType) {
-    return cb(null, true);
+  if (allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
+    cb(null, true);
   } else {
-    cb(new Error("Only images (jpeg, jpg, png, webp) and PDF files are allowed!"));
+    cb(
+      new Error("Invalid file type. Only PDF, JPG, JPEG, and PNG files are allowed."),
+      false
+    );
   }
 };
 
 const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: fileFilter
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10 MB file size limit
+  }
 });
 
 module.exports = upload;

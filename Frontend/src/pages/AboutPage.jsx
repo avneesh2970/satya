@@ -36,21 +36,6 @@ const AboutPage = () => {
             <p className="about-hero-sub">
               Since 2010, Satya Physiotherapy Center has helped over 12,000 patients recover from severe joint, spine, neuro, and sports conditions without unnecessary surgery.
             </p>
-
-            <div className="contact-quick-badges about-hero-badges">
-              <div className="quick-badge-item animated-float-1">
-                <Award size={16} color="#00b493" />
-                <span>15+ Years Excellence</span>
-              </div>
-              <div className="quick-badge-item animated-float-2">
-                <Users size={16} color="#00b493" />
-                <span>12,000+ Recovered Patients</span>
-              </div>
-              <div className="quick-badge-item animated-float-3">
-                <ShieldCheck size={16} color="#00b493" />
-                <span>100% Non-Surgical Focus</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>

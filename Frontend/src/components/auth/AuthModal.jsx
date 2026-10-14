@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, Phone, User, LogIn, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Lock, Eye, EyeOff, Mail, Phone, User, LogIn, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const AuthModal = ({ isOpen, onClose, initialTab = 'login' }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [showPassword, setShowPassword] = useState(false);
   const { login, register } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -164,14 +165,24 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login' }) => {
             <div className="input-icon-wrap">
               <Lock size={18} className="input-icon" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 name="password"
                 required
-                minlength="6"
+                minLength="6"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
+                style={{ paddingRight: '2.6rem' }}
               />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 

@@ -8,7 +8,9 @@ const {
   getFAQs,
   getClinicInfo,
   getBlogs,
-  getBlogBySlug
+  getBlogBySlug,
+  getNews,
+  getNewsBySlug
 } = require("../controllers/publicController");
 
 router.get("/services", getServices);
@@ -19,5 +21,7 @@ router.get("/faqs", getFAQs);
 router.get("/clinic-info", getClinicInfo);
 router.get("/blogs", getBlogs);
 router.get("/blogs/:slug", getBlogBySlug);
+router.get("/news", getNews);
+router.get("/news/:slug", getNewsBySlug);
 
 module.exports = router;

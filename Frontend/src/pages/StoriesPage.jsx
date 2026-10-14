@@ -22,18 +22,6 @@ const StoriesPage = () => {
             <p className="about-hero-sub">
               Explore how our evidence-based rehabilitation protocols have helped thousands of patients overcome disc herniations, ACL tears, and chronic joint pain.
             </p>
-
-            <div className="contact-quick-badges about-hero-badges">
-              <div className="quick-badge-item animated-float-1">
-                <span>⭐ 4.9/5 Rating (500+ Reviews)</span>
-              </div>
-              <div className="quick-badge-item animated-float-2">
-                <span>💚 98.4% Recovery Rate</span>
-              </div>
-              <div className="quick-badge-item animated-float-3">
-                <span> Verified Patient Stories</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>

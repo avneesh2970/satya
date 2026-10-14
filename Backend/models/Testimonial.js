@@ -9,7 +9,8 @@ const testimonialSchema = new mongoose.Schema(
     },
     patientRole: {
       type: String,
-      default: "Patient"
+      default: "Patient",
+      trim: true
     },
     quote: {
       type: String,
@@ -23,7 +24,11 @@ const testimonialSchema = new mongoose.Schema(
     },
     avatar: {
       type: String,
-      default: ""
+      default: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+    },
+    tag: {
+      type: String,
+      default: "Recovery Milestone"
     },
     featured: {
       type: Boolean,
@@ -40,3 +45,4 @@ const testimonialSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Testimonial", testimonialSchema);
+

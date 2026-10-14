@@ -59,13 +59,52 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["upcoming", "completed", "cancelled"],
-      default: "upcoming"
+      enum: [
+        "PENDING_ADMIN_APPROVAL",
+        "PENDING_PHYSIOTHERAPIST_APPROVAL",
+        "REJECTED_BY_ADMIN",
+        "CONFIRMED",
+        "REJECTED_BY_PHYSIOTHERAPIST",
+        "RESCHEDULED",
+        "upcoming",
+        "completed",
+        "cancelled"
+      ],
+      default: "PENDING_ADMIN_APPROVAL"
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: false
+    },
+    physiotherapistId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Physiotherapist",
+      required: false
+    },
+    adminApprovedAt: {
+      type: Date
+    },
+    adminRejectedAt: {
+      type: Date
+    },
+    adminRejectionReason: {
+      type: String,
+      default: ""
+    },
+    physiotherapistApprovedAt: {
+      type: Date
+    },
+    physiotherapistRejectedAt: {
+      type: Date
+    },
+    physiotherapistRejectionReason: {
+      type: String,
+      default: ""
+    },
+    isReadAdmin: {
+      type: Boolean,
+      default: false
     }
   },
   {

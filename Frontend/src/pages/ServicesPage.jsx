@@ -35,24 +35,12 @@ const ServicesPage = () => {
             <p className="about-hero-sub">
               From orthopedic joint mobilization to high-intensity Class IV laser therapy, we provide targeted non-invasive treatments tailored to your condition.
             </p>
-
-            <div className="contact-quick-badges about-hero-badges">
-              <div className="quick-badge-item animated-float-1">
-                <span>⚡ Class IV Laser Therapy</span>
-              </div>
-              <div className="quick-badge-item animated-float-2">
-                <span>🎯 Spinal Decompression</span>
-              </div>
-              <div className="quick-badge-item animated-float-3">
-                <span>💪 Neuro & Sports Rehab</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* Services Catalog & Detail Modal */}
-      <Services />
+      <Services isHomePage={false} />
 
       {/* Footer */}
       <Footer />
